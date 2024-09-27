@@ -1,0 +1,47 @@
+.grid-container { 
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.grid-item {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+.grid-header {
+    padding: 20px;
+    font-weight: bold;
+}
+
+.grid-container-1-2 { 
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 768px) {
+    .grid-container-1-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+#error-modal > div {
+    background-color: white;
+    border: 1px solid #f5c6cb;
+    border-radius: 20px;
+    padding: 2em 3em;
+}
+
+#dialog-content {
+    padding-bottom: 0.5em;;
+}
+
+#dialog-status {
+    padding-bottom: 1em;;
+}
+
+.search-form-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline
+}

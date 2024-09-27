@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "graphrag-ui"
+version = "0.1.0"
+description = "Simple Streamlit based UI for [Graph RAG](https://github.com/microsoft/graphrag)."
+authors = ["Gil Fernandes <gil.fernandes@onepointltd.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.12.6"
+graphrag = "^0.3.6"
+python-fasthtml = "^0.6.8"
+markdown = "^3.7"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+pytest = "^8.3.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
