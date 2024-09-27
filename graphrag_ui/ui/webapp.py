@@ -31,7 +31,6 @@ from graphrag_ui.service.graphrag_service import (
     graphrag_init,
     graphrag_index,
     STATUS_MESSAGES,
-    set_api_key,
 )
 from graphrag_ui.config import cfg
 from graphrag_ui.ui.snippets import title_group
@@ -147,16 +146,6 @@ async def post(myFile: UploadFile, projectTitle: str):
     print("My file", myFile)
     contents = await myFile.read()
     return f"""Project {create_project_link(projectTitle)} created successfully"""
-
-
-@app.route("/project/key")
-async def post(projectTitle: str, key: str):
-    project_dir = (cfg.project_dir / projectTitle,)
-    try:
-        set_api_key(project_dir, key)
-        return f"Key for project <b>{projectTitle}</b> set successfully."
-    except Exception as e:
-        return f"Error: {e}"
 
 
 @app.route("/project/index/{projectTitle}")

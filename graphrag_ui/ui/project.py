@@ -24,6 +24,7 @@ from graphrag_ui.service.graphrag_service import (
     get_project_status,
     list_output_files,
     list_columns,
+    set_api_key,
     ProjectStatus,
     STATUS_MESSAGES,
 )
@@ -95,7 +96,7 @@ def get(projectTitle: str):
             Div(P("Uploading..."), cls="htmx-indicator", id=ID_SPINNER),
             hx_post="/project/key",
             hx_indicator=f"#{ID_SPINNER}",
-            target_id=ID_CARD,
+            target_id=ID_GLOBAL_SEARCH_RESULT,
             id=ID_CONFIG_FORM,
         )
         form_components.append(config_form)
@@ -109,7 +110,7 @@ def get(projectTitle: str):
             ),
             hx_post=f"/project/index/{quote_plus(projectTitle)}",
             hx_indicator=f"#{ID_SPINNER}",
-            target_id=ID_CARD,
+            target_id=ID_GLOBAL_SEARCH_RESULT,
             id=ID_INDEX_FORM,
         )
         form_components.append(index_form)
@@ -142,6 +143,15 @@ def get(projectTitle: str):
         cls="container",
     )
 
+@app.route("/project/key")
+async def post(projectTitle: str, key: str):
+    project_dir = cfg.project_dir / projectTitle
+    try:
+        set_api_key(project_dir, key)
+        return f"Key for project <b>{projectTitle}</b> set successfully."
+    except Exception as e:
+        return f"Error: {e}"
+
 
 @app.route("/project/global-search")
 async def post(projectTitle: str, query: str):
@@ -151,7 +161,7 @@ async def post(projectTitle: str, query: str):
 
 
 @app.route("/project/output/{projectTitle}/{file_name}")
-def post(projectTitle: str, file_name: str):
+def get(projectTitle: str, file_name: str):
     projectTitle = unquote_plus(projectTitle)
     file_name = unquote_plus(file_name)
     file = cfg.project_dir / projectTitle / "output" / file_name
