@@ -10,6 +10,7 @@ from fasthtml.common import (
     Title,
     Main,
     H2,
+    H3,
     P,
     Br,
     B,
@@ -18,6 +19,7 @@ from fasthtml.common import (
     Li,
     Ul,
     Pre,
+    NotStr
 )
 
 from graphrag_ui.service.graphrag_service import (
@@ -25,15 +27,18 @@ from graphrag_ui.service.graphrag_service import (
     list_output_files,
     list_columns,
     set_api_key,
+    has_claims,
+    get_project_dir,
+    activate_claims,
+    has_claims_flag,
     ProjectStatus,
     STATUS_MESSAGES,
 )
-from graphrag_ui.service.graphrag_query import query_rag_global
+from graphrag_ui.service.graphrag_query import query_rag, generate_questions, SearchType
 from graphrag_ui.config import cfg
-from graphrag_ui.ui.snippets import title_group
+from graphrag_ui.ui.snippets import title_group, REFRESH_LINK
 from graphrag_ui.ui.webapp import (
     app,
-    ID_CARD,
     ID_CONFIG_FORM,
     ID_INDEX_FORM,
     ID_SPINNER,
@@ -41,10 +46,39 @@ from graphrag_ui.ui.webapp import (
 
 ID_GLOBAL_SEARCH_FORM = "global-search-form"
 ID_GLOBAL_SEARCH_RESULT = "global-search-result"
+ID_GGENERATE_FORM = "generate-form"
+ID_CLAIMS_SPINNER = "claims-form-spinner"
+ID_CLAIMS_FORM = "claims-form"
+ID_GENERATION_SPINNER = "generation-spinner"
+
+SESSION_ASKED_QUESTIONS = "asked_questions"
 
 
-def global_search_form(projectTitle: str) -> Form:
+def search_form(projectTitle: str) -> Form:
+    searchType = (
+        Div(
+            Input(
+                "Global",
+                type="radio",
+                id="search-type",
+                name="searchType",
+                value=SearchType.GLOBAL.value,
+                checked=True,
+            ),
+            Input(
+                "Local",
+                type="radio",
+                id="search-type",
+                name="searchType",
+                value=SearchType.LOCAL.value,
+            ),
+            cls="search-type",
+        )
+        if has_claims(get_project_dir(projectTitle))
+        else Hidden(SearchType.GLOBAL.value, id="search-type", name="searchType")
+    )
     return Form(
+        searchType,
         Label(
             "Global search query",
             Input(
@@ -61,14 +95,53 @@ def global_search_form(projectTitle: str) -> Form:
             cls="search-form-buttons",
         ),
         Div(
-            P("Performing global search. Please wait ..."),
+            P("Performing search. Please wait ..."),
             cls="htmx-indicator",
             id=ID_SPINNER,
         ),
-        hx_post=f"/project/global-search",
+        hx_post=f"/project/search",
         hx_indicator=f"#{ID_SPINNER}",
         target_id=ID_GLOBAL_SEARCH_RESULT,
         id=ID_GLOBAL_SEARCH_FORM,
+    )
+
+
+def generate_question_form(projectTitle: str, query: str) -> Form:
+    return Form(
+        Button("Generate other questions"),
+        Div(
+            P("Generating question. Please wait ..."),
+            cls="htmx-indicator",
+            id=ID_GENERATION_SPINNER,
+        ),
+        Hidden(value=projectTitle, id="projectTitle", name="projectTitle"),
+        Hidden(value=query, id="query", name="query"),
+        hx_post=f"/project/generate-question",
+        hx_indicator=f"#{ID_GENERATION_SPINNER}",
+        target_id=ID_GGENERATE_FORM,
+        id=ID_GGENERATE_FORM,
+    )
+
+
+def claims_form(projectTitle: str) -> Form:
+    does_have_claims = has_claims_flag(get_project_dir(projectTitle))
+    return Form(
+        Hidden(value=str(not does_have_claims), id="enabled", name="enabled"),
+        Hidden(value=projectTitle, id="projectTitle", name="projectTitle"),
+        Button(
+            "Activate claims" if not does_have_claims else "Deactivate claims",
+            style="margin-bottom: 10px;",
+        ),
+        Div(
+            P("Updating claims flag. Please wait ..."),
+            cls="htmx-indicator",
+            id=ID_CLAIMS_SPINNER,
+        ),
+        hx_put=f"/project/activate-claims",
+        hx_indicator=f"#{ID_CLAIMS_SPINNER}",
+        target_id=ID_CLAIMS_FORM,
+        id=ID_CLAIMS_FORM,
+        style="margin-bottom: 10px;",
     )
 
 
@@ -99,6 +172,7 @@ def get(projectTitle: str):
             target_id=ID_GLOBAL_SEARCH_RESULT,
             id=ID_CONFIG_FORM,
         )
+        form_components.append(claims_form(projectTitle))
         form_components.append(config_form)
     elif project_status == ProjectStatus.CONFIGURED:
         index_form = Form(
@@ -126,7 +200,7 @@ def get(projectTitle: str):
                     )
                 )
             )
-        form_components.append(global_search_form(projectTitle))
+        form_components.append(search_form(projectTitle))
     status = (Div(P("Status: ", B(STATUS_MESSAGES[project_status]))),)
     card = Div(id=ID_GLOBAL_SEARCH_RESULT, style="margin-top: 10px;", cls="marked")
     output_files_container = (
@@ -143,21 +217,44 @@ def get(projectTitle: str):
         cls="container",
     )
 
+
 @app.route("/project/key")
 async def post(projectTitle: str, key: str):
-    project_dir = cfg.project_dir / projectTitle
+    project_dir = get_project_dir(projectTitle)
     try:
         set_api_key(project_dir, key)
-        return f"Key for project <b>{projectTitle}</b> set successfully."
+        return f"""Key for project <b>{projectTitle}</b> set successfully. {REFRESH_LINK}"""
     except Exception as e:
-        return f"Error: {e}"
+        return f"Failed to set key: {e}"
 
 
-@app.route("/project/global-search")
-async def post(projectTitle: str, query: str):
+@app.route("/project/activate-claims")
+async def put(projectTitle: str, enabled: str):
+    project_dir = get_project_dir(projectTitle)
+    try:
+        activate_claims(project_dir, enabled.lower() == "true")
+        return f"Claims for project <b>{projectTitle}</b> {"activated" if enabled.lower() == 'true' else "deactivated"}."
+    except Exception as e:
+        return f"Failed to activate claims: {e}"
+
+
+@app.route("/project/search")
+async def post(projectTitle: str, query: str, searchType: str):
+    search_type = SearchType.GLOBAL if searchType == "global" else SearchType.LOCAL
     projectTitle = unquote_plus(projectTitle)
-    results = await query_rag_global(query, cfg.project_dir / projectTitle)
-    return results
+    results = await query_rag(query, cfg.project_dir / projectTitle, search_type)
+    if search_type == SearchType.LOCAL:
+        form = generate_question_form(projectTitle, query)
+        return tuple((form, NotStr(results)))
+    else:
+        return results
+    
+
+@app.route("/project/generate-question")
+async def post(projectTitle: str, query: str):
+    question_history = [query]
+    questions = await generate_questions(question_history, cfg.project_dir / projectTitle)
+    return Div(H3("Questions"), *[P(B(q)) for q in questions])
 
 
 @app.route("/project/output/{projectTitle}/{file_name}")

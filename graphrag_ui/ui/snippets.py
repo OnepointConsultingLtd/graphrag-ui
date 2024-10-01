@@ -1,6 +1,9 @@
 from fasthtml.common import Group, H1, A, Img
 
 
+REFRESH_LINK = """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
+
+
 def title_group(title: str):
     return Group(
         H1(title),

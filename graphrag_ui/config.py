@@ -21,6 +21,7 @@ class Config:
 
     openai_api_key = os.getenv("OPENAI_API_KEY")
     open_ai_model = os.getenv("OPENAI_API_MODEL")
+    open_ai_model_embedding = os.getenv("OPENAI_API_MODEL_EMBEDDING")
 
     llm = ChatOpenAI(
         api_key=openai_api_key,

@@ -3,11 +3,14 @@ from enum import Enum
 from typing import List, Tuple
 
 import subprocess
+import yaml
 
 import pandas as pd
 
 from graphrag_ui.config import cfg
 from pydantic import BaseModel, Field
+
+from graphrag_ui.service.graphrag_query import COVARIATE_TABLE
 
 
 class ProjectStatus(Enum):
@@ -82,11 +85,14 @@ def set_api_key(project_dir: Path, api_key: str):
 
 
 def list_projects() -> List[Project]:
-    return [
-        Project(name=f.name, status=get_project_status(f))
-        for f in cfg.project_dir.glob("*")
-        if f.is_dir()
-    ]
+    return sorted(
+        [
+            Project(name=f.name, status=get_project_status(f))
+            for f in cfg.project_dir.glob("*")
+            if f.is_dir()
+        ],
+        key=lambda p: p.name.lower(),
+    )
 
 
 def list_output_files(project_dir: Path) -> List[Path]:
@@ -99,3 +105,29 @@ def list_columns(file: Path) -> Tuple[List[str], str]:
     df = pd.read_parquet(file)
     head = df.head()
     return df.columns.values.tolist(), str(head)
+
+
+def get_project_dir(projectTitle: str) -> Path:
+    return cfg.project_dir / projectTitle
+
+
+def has_claims(project_dir: Path) -> bool:
+    return (project_dir / "output" / f"{COVARIATE_TABLE}.parquet").exists()
+
+
+def has_claims_flag(project_dir: Path) -> bool:
+    settings, _ = read_settings_yaml(project_dir)
+    return settings["claim_extraction"] and "enabled" in settings["claim_extraction"]
+
+
+def read_settings_yaml(project_dir: Path) -> dict:
+    settings_file = project_dir / "settings.yaml"
+    with open(settings_file, "r") as f:
+        return yaml.safe_load(f), settings_file
+
+
+def activate_claims(project_dir: Path, enabled: bool):
+    settings, settings_file = read_settings_yaml(project_dir)
+    settings["claim_extraction"]["enabled"] = enabled
+    with open(settings_file, "w") as f:
+        yaml.safe_dump(settings, f)

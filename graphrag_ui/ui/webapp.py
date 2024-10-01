@@ -1,3 +1,5 @@
+from typing import List
+
 from enum import Enum
 from pathlib import Path
 
@@ -23,8 +25,9 @@ from fasthtml.common import (
     Link,
     Dialog,
     MarkdownJS,
-    HighlightJS
+    HighlightJS,
 )
+from starlette.requests import Request
 
 from graphrag_ui.service.graphrag_service import (
     list_projects,
@@ -53,8 +56,10 @@ app = FastHTML(
         Link(href="/css/main.css", type="text/css", rel="stylesheet"),
         Script(src="/js/error.js"),
         Script(src="/js/main.js"),
-        MarkdownJS(), HighlightJS(langs=['python', 'javascript', 'html', 'css'])
+        MarkdownJS(),
+        HighlightJS(langs=["python", "javascript", "html", "css"]),
     ),
+    htmlkw={'data-theme': "dark"},
     ftrs=(footer,),
 )
 
@@ -63,6 +68,9 @@ ID_CONFIG_FORM = "config-form"
 ID_CARD = "upload-card"
 ID_SPINNER = "upload-spinner"
 ID_INDEX_FORM = "index-form"
+
+
+REFRESH_LINK = """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
 
 
 class ErrorCode(Enum):
@@ -109,6 +117,12 @@ def get():
 
 @app.route("/create")
 def get():
+    files = [
+        Input(id="myFile", type="file"),
+        Input(id="myFile2", type="file"),
+        Input(id="myFile3", type="file"),
+        Input(id="myFile4", type="file"),
+    ]
     project_form = Form(
         Label(
             "Project title",
@@ -119,12 +133,12 @@ def get():
                 required=True,
             ),
         ),
-        Input(id="myFile", type="file"),
+        *files,
         Button("Create project"),
         Div(P("Uploading. Please wait ..."), cls="htmx-indicator", id=ID_SPINNER),
         hx_post="/myupload",
         hx_indicator=f"#{ID_SPINNER}",
-        hx_swap="beforeend",
+        hx_swap="innerHTML",
         target_id=ID_CARD,
         id=ID_UPLOAD_FORM,
     )
@@ -134,18 +148,21 @@ def get():
 
 
 @app.route("/myupload")
-async def post(myFile: UploadFile, projectTitle: str):
-    error_code = create_project(projectTitle)
-    if error_code == ErrorCode.PROJECT_ALREADY_EXISTS:
-        return f"Project {create_project_link(projectTitle)} already exists"
+async def post(req: Request, myFile: UploadFile, projectTitle: str):
+    async with req.form() as form:
+        error_code = create_project(projectTitle)
+        if error_code == ErrorCode.PROJECT_ALREADY_EXISTS:
+            return f"Project {create_project_link(projectTitle)} already exists"
 
-    error_code = await init_graphrag_file(myFile, projectTitle)
-    if error_code == ErrorCode.UNSUPPORTED_FILE_TYPE:
-        return f"Unsupported file type {myFile.content_type}"
+        files = []
+        for k, v in form.items():
+            if 'myFile' in k:
+                files.append(v)
+        error_code = await init_graphrag_file(files, projectTitle)
+        if error_code == ErrorCode.UNSUPPORTED_FILE_TYPE:
+            return f"Unsupported file type {myFile.content_type}"
 
-    print("My file", myFile)
-    contents = await myFile.read()
-    return f"""Project {create_project_link(projectTitle)} created successfully"""
+        return f"""Project {create_project_link(projectTitle)} created successfully"""
 
 
 @app.route("/project/index/{projectTitle}")
@@ -153,10 +170,10 @@ async def post(projectTitle: str):
     projectTitle = unquote_plus(projectTitle)
     project_dir = cfg.project_dir / projectTitle
     if not project_dir.exists():
-        return f"Project {projectTitle} does not exist."
+        return f"Project {projectTitle} does not exist.<br />"
     try:
         graphrag_index(project_dir)
-        return f"Project {projectTitle} indexed successfully."
+        return f"Project {projectTitle} indexed successfully. {REFRESH_LINK}<br />"
     except Exception as e:
         return f"Error: {e}"
 
@@ -175,23 +192,30 @@ def create_project(project_title: str) -> ErrorCode:
     return ErrorCode.OK
 
 
-async def init_graphrag_file(file: UploadFile, project_title: str) -> ErrorCode:
-    content_type = file.content_type
-    file_name = file.filename
+async def init_graphrag_file(files: List[UploadFile], project_title: str) -> ErrorCode:
     project_dir = Path(cfg.project_dir) / project_title
+    
+    invalid_files = 0
+    for file in files:
+        content_type = file.content_type
+        file_name = file.filename
+        if content_type in ["text/plain"]:
+            input_file_path = project_dir / "input"
+            input_file_path.mkdir(parents=True, exist_ok=True)
+            file_path = input_file_path / file_name
+            with file_path.open("wb") as f:
+                content = await file.read()
+                f.write(content)
+        else:
+            invalid_files += 1
 
-    if content_type in ["text/plain", "application/zip"]:
-        input_file_path = project_dir / "input"
-        input_file_path.mkdir(parents=True, exist_ok=True)
-        file_path = input_file_path / file_name
-        with file_path.open("wb") as f:
-            content = await file.read()
-            f.write(content)
-        try:
-            graphrag_init(project_dir)
-        except Exception as e:
-            print(e)
-            return ErrorCode.GRAPHRAG_INIT_ERROR
-        return ErrorCode.OK
-    else:
+    if invalid_files > 0:
         return ErrorCode.UNSUPPORTED_FILE_TYPE
+
+    try:
+        graphrag_init(project_dir)
+    except Exception as e:
+        print(e)
+        return ErrorCode.GRAPHRAG_INIT_ERROR
+    return ErrorCode.OK
+    
