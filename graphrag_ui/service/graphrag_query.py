@@ -18,7 +18,7 @@ from graphrag.query.indexer_adapters import (
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
 from graphrag.query.structured_search.local_search.search import LocalSearch
-from graphrag.query.question_gen.local_gen import LocalQuestionGen
+from graphrag.query.question_gen.local_gen import LocalQuestionGen, BaseQuestionGen
 from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
@@ -124,6 +124,16 @@ def build_local_context_builder(project_dir: Path) -> LocalSearchMixedContext:
     )
 
 
+def build_global_context_builder(project_dir: Path) -> GlobalCommunityContext:
+    reports, entities = load_project_data(project_dir)
+
+    return GlobalCommunityContext(
+        community_reports=reports,
+        entities=entities,  # default to None if you don't want to use community weights for ranking
+        token_encoder=token_encoder,
+    )
+
+
 def init_local_params() -> Tuple[dict, dict]:
     local_context_params = {
         "text_unit_prop": 0.5,
@@ -183,13 +193,7 @@ async def rag_local(query: str, project_dir: Path) -> str:
 
 async def rag_global(query: str, project_dir: Path) -> str:
 
-    reports, entities = load_project_data(project_dir)
-
-    context_builder = GlobalCommunityContext(
-        community_reports=reports,
-        entities=entities,  # default to None if you don't want to use community weights for ranking
-        token_encoder=token_encoder,
-    )
+    context_builder = build_global_context_builder(project_dir)
 
     context_builder_params = {
         "use_community_summary": False,  # False means using full community reports. True means using community short summaries.
@@ -246,6 +250,10 @@ async def generate_questions(question_history: List[str], project_dir: Path) -> 
         llm_params=llm_params,
         context_builder_params=local_context_params,
     )
+    return await execute_question_generation(question_history, question_generator)
+
+
+async def execute_question_generation(question_history: List[str], question_generator: BaseQuestionGen) -> List[str]:
     candidate_questions = await question_generator.agenerate(
         question_history=question_history, context_data=None, question_count=5
     )

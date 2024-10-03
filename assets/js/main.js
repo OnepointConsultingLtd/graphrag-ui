@@ -6,3 +6,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+function replaceQuestions(question) {
+    const queryElem = document.querySelector("input[name=query]")
+    if(!!queryElem) {
+        queryElem.value = question.replace(/\-\s/, "");
+    }
+    return false;
+}

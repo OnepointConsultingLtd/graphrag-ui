@@ -254,7 +254,7 @@ async def post(projectTitle: str, query: str, searchType: str):
 async def post(projectTitle: str, query: str):
     question_history = [query]
     questions = await generate_questions(question_history, cfg.project_dir / projectTitle)
-    return Div(H3("Questions"), *[P(B(q)) for q in questions])
+    return Div(H3("Questions"), *[P(B(A(q, id=f"question-{i}", href=f"javascript: replaceQuestions(document.getElementById('question-{i}').innerText)"))) for i, q in enumerate(questions)])
 
 
 @app.route("/project/output/{projectTitle}/{file_name}")

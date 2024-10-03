@@ -46,6 +46,12 @@ def graphrag_index(input_dir: Path):
     subprocess.call(["python", "-m", "graphrag.index", "--root", input_dir.as_posix()])
 
 
+def graphrag_prompt_tuning(input_dir: Path):
+    subprocess.call(
+        ["python", "-m", "graphrag.prompt_tune", "--root", input_dir.as_posix()]
+    )
+
+
 def get_project_status(project_dir: Path) -> ProjectStatus:
     if not project_dir.exists():
         return ProjectStatus.NOT_INITIALIZED
