@@ -135,7 +135,7 @@ def get():
                 ),
                 Div(STATUS_MESSAGES[project.status], cls="grid-item"),
                 cls="grid-row",
-                id=target_id
+                id=target_id,
             )
         )
 
@@ -148,7 +148,7 @@ def get():
                 style="display: block;",
             )
         ),
-        Div(*rows, id="grid"),
+        Div(*rows, id="grid") if len(projects) > 0 else Div(P("No projects found. Create a new project to get started.", style="margin-top: 2em; ")),
         cls="container",
     )
 
@@ -172,7 +172,7 @@ def get(session):
         Div(
             Button(
                 " + ",
-                style="margin-bottom: 10px; border-radius: 20px; border: 1px solid #ccc; padding: 3px 10px;",
+                style="margin-bottom: 20px; border-radius: 20px; border: 1px solid #ccc; padding: 3px 10px;",
                 hx_post="/add-file",
                 target_id="file-container",
                 hx_swap="beforebegin",

@@ -56,6 +56,7 @@ def graphrag_prompt_tuning(input_dir: Path):
             "python",
             "-m",
             "graphrag.prompt_tune",
+            "--no-entity-types",
             "--root",
             input_dir.as_posix(),
             "--config",
@@ -153,3 +154,10 @@ def activate_claims(project_dir: Path, enabled: bool):
 
 def delete_project(project_dir: Path):
     shutil.rmtree(project_dir)
+
+
+def convert_to_csv(project_dir: Path):
+    for parquet_file in (project_dir / "output").glob("*.parquet"):
+        df = pd.read_parquet(parquet_file)
+        csv_file = parquet_file.with_suffix(".csv")
+        df.to_csv(csv_file, index=False)

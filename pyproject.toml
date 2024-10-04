@@ -8,9 +8,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "3.12.6"
-graphrag = "^0.3.6"
 python-fasthtml = "^0.6.8"
 markdown = "^3.7"
+# graphrag = "^0.3.6"
+# Modified version
+graphrag = {path = "../graphrag/dist/graphrag-0.3.6.post2-py3-none-any.whl"}
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.8.0"

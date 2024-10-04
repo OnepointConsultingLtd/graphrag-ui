@@ -27,12 +27,11 @@ from graphrag_ui.service.graphrag_service import (
     list_output_files,
     list_columns,
     set_api_key,
-    has_claims,
     get_project_dir,
     activate_claims,
-    has_claims_flag,
     graphrag_prompt_tuning,
     ProjectStatus,
+    convert_to_csv,
     STATUS_MESSAGES,
 )
 from graphrag_ui.service.graphrag_query import query_rag, generate_questions, SearchType
@@ -44,123 +43,18 @@ from graphrag_ui.ui.webapp import (
     ID_INDEX_FORM,
     ID_SPINNER,
 )
+from graphrag_ui.ui.ids import (
+    ID_GLOBAL_SEARCH_RESULT,
+)
+from graphrag_ui.ui.forms import (
+    claims_form,
+    prompt_tuning_form,
+    search_form,
+    generate_question_form,
+    create_csv_conversion_form,
+)
 
-ID_GLOBAL_SEARCH_FORM = "global-search-form"
-ID_GLOBAL_SEARCH_RESULT = "global-search-result"
-ID_GGENERATE_FORM = "generate-form"
-ID_CLAIMS_SPINNER = "claims-form-spinner"
-ID_CLAIMS_FORM = "claims-form"
-ID_GENERATION_SPINNER = "generation-spinner"
-ID_TUNING_SPINNER = "tuning-spinner"
-ID_PROMPT_TUNING_FORM = "prompt-tuning-form"
 SESSION_ASKED_QUESTIONS = "asked_questions"
-
-
-def search_form(projectTitle: str) -> Form:
-    searchType = (
-        Div(
-            Input(
-                "Global",
-                type="radio",
-                id="search-type",
-                name="searchType",
-                value=SearchType.GLOBAL.value,
-                checked=True,
-            ),
-            Input(
-                "Local",
-                type="radio",
-                id="search-type",
-                name="searchType",
-                value=SearchType.LOCAL.value,
-            ),
-            cls="search-type",
-        )
-        if has_claims(get_project_dir(projectTitle))
-        else Hidden(SearchType.GLOBAL.value, id="search-type", name="searchType")
-    )
-    return Form(
-        searchType,
-        Label(
-            "Global search query",
-            Input(
-                id="query",
-                name="query",
-                required=True,
-                placeholder="Please enter your query, like 'What are the main topics?'",
-            ),
-        ),
-        Hidden(value=projectTitle, id="projectTitle"),
-        Div(
-            Button("Search"),
-            Button("Clear", type="reset", id="global-search-reset-button"),
-            cls="search-form-buttons",
-        ),
-        Div(
-            P("Performing search. Please wait ..."),
-            cls="htmx-indicator",
-            id=ID_SPINNER,
-        ),
-        hx_post=f"/project/search",
-        hx_indicator=f"#{ID_SPINNER}",
-        target_id=ID_GLOBAL_SEARCH_RESULT,
-        id=ID_GLOBAL_SEARCH_FORM,
-    )
-
-
-def generate_question_form(projectTitle: str, query: str) -> Form:
-    return Form(
-        Button("Generate other questions"),
-        Div(
-            P("Generating question. Please wait ..."),
-            cls="htmx-indicator",
-            id=ID_GENERATION_SPINNER,
-        ),
-        Hidden(value=projectTitle, id="projectTitle", name="projectTitle"),
-        Hidden(value=query, id="query", name="query"),
-        hx_post=f"/project/generate-question",
-        hx_indicator=f"#{ID_GENERATION_SPINNER}",
-        target_id=ID_GGENERATE_FORM,
-        id=ID_GGENERATE_FORM,
-    )
-
-
-def claims_form(projectTitle: str) -> Form:
-    does_have_claims = has_claims_flag(get_project_dir(projectTitle))
-    return Form(
-        Hidden(value=str(not does_have_claims), id="enabled", name="enabled"),
-        Hidden(value=projectTitle, id="projectTitle", name="projectTitle"),
-        Button(
-            "Activate claims" if not does_have_claims else "Deactivate claims",
-            style="margin-bottom: 10px;",
-        ),
-        Div(
-            P("Updating claims flag. Please wait ..."),
-            cls="htmx-indicator",
-            id=ID_CLAIMS_SPINNER,
-        ),
-        hx_put=f"/project/activate-claims",
-        hx_indicator=f"#{ID_CLAIMS_SPINNER}",
-        target_id=ID_CLAIMS_FORM,
-        id=ID_CLAIMS_FORM,
-        style="margin-bottom: 10px;",
-    )
-
-
-def prompt_tuning_form(projectTitle: str) -> Form:
-    return Form(
-        Button("Prompt tuning"),
-        Hidden(value=projectTitle, id="projectTitle"),
-        Div(
-            P("Tuning prompts automatically. Please wait ..."),
-            cls="htmx-indicator",
-            id=ID_TUNING_SPINNER,
-        ),
-        hx_put="/project/prompt-tuning",
-        hx_indicator=f"#{ID_TUNING_SPINNER}",
-        target_id=ID_GLOBAL_SEARCH_RESULT,
-        id=ID_PROMPT_TUNING_FORM,
-    )
 
 
 @app.route("/project/{projectTitle}")
@@ -171,6 +65,7 @@ def get(projectTitle: str):
     project_status = get_project_status(project_dir)
     form_components = []
     output_files_components = []
+    csv_conversion_form = []
     if project_status == ProjectStatus.INITIALIZED:
         config_form = Form(
             Label(
@@ -194,7 +89,12 @@ def get(projectTitle: str):
         form_components.append(config_form)
     elif project_status == ProjectStatus.CONFIGURED:
         index_form = Form(
-            Button("Index project", {"onclick": f"""document.getElementById("{ID_GLOBAL_SEARCH_RESULT}").replaceChildren()"""}),
+            Button(
+                "Index project",
+                {
+                    "onclick": f"""document.getElementById("{ID_GLOBAL_SEARCH_RESULT}").replaceChildren()"""
+                },
+            ),
             Div(
                 P("Indexing. Please wait. This may take a while ..."),
                 cls="htmx-indicator",
@@ -221,10 +121,17 @@ def get(projectTitle: str):
                 )
             )
         form_components.append(search_form(projectTitle))
+        csv_conversion_form.extend(create_csv_conversion_form(projectTitle))
     status = (Div(P("Status: ", B(STATUS_MESSAGES[project_status]))),)
     card = Div(id=ID_GLOBAL_SEARCH_RESULT, style="margin-top: 10px;", cls="marked")
     output_files_container = (
-        Div(H2("Output files"), Div(*output_files_components, cls="grid-container-1-2"))
+        Div(
+            H2("Output files"),
+            Div(
+                *output_files_components,
+                cls="grid-container-1-2",
+            ),
+        )
         if len(output_files_components) > 0
         else None
     )
@@ -234,6 +141,7 @@ def get(projectTitle: str):
         *form_components,
         card,
         output_files_container,
+        *csv_conversion_form,
         cls="container",
     )
 
@@ -263,7 +171,7 @@ async def put(projectTitle: str):
     project_dir = get_project_dir(projectTitle)
     try:
         graphrag_prompt_tuning(project_dir)
-        return f"Prompt tuning for project <b>{projectTitle}</b> finished. You can now index the project if you want."
+        return f"Prompt tuning for project <b>{projectTitle}</b> finished."
     except Exception as e:
         return f"Failed to start prompt tuning: {e}"
 
@@ -325,3 +233,12 @@ def get(projectTitle: str, file_name: str):
         Pre(head),
         cls="container",
     )
+
+
+@app.route("/project/convert-to-csv")
+async def post(projectTitle: str):
+    try:
+        convert_to_csv(cfg.project_dir / projectTitle)
+        return f"CSV conversion for project <b>{projectTitle}</b> finished."
+    except Exception as e:
+        return f"Failed to convert to CSVs: {e}"
