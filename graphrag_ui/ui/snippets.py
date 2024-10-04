@@ -1,7 +1,9 @@
-from fasthtml.common import Group, H1, A, Img
+from fasthtml.common import Group, H1, A, Img, Div, Input, Button
 
 
-REFRESH_LINK = """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
+REFRESH_LINK = (
+    """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
+)
 
 
 def title_group(title: str):
@@ -19,4 +21,20 @@ def title_group(title: str):
             href="/",
             style="text-align: right;",
         ),
+    )
+
+
+def create_file_input(file_amount: int):
+    id = f"file-container-{file_amount}"
+    return Div(
+        Input(id=f"myFile{file_amount}", type="file"),
+        Button(
+            "Delete",
+            hx_delete="/delete-file",
+            target_id=id,
+            hx_swap="outerHTML",
+            cls="delete",
+        ),
+        style="display: flex; align-items: center;",
+        id=id,
     )

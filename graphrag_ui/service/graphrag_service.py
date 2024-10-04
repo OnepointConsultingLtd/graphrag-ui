@@ -1,3 +1,5 @@
+import shutil
+
 from pathlib import Path
 from enum import Enum
 from typing import List, Tuple
@@ -47,8 +49,18 @@ def graphrag_index(input_dir: Path):
 
 
 def graphrag_prompt_tuning(input_dir: Path):
+    settings_file = input_dir / "settings.yaml"
+    assert settings_file.exists(), "Settings file not found"
     subprocess.call(
-        ["python", "-m", "graphrag.prompt_tune", "--root", input_dir.as_posix()]
+        [
+            "python",
+            "-m",
+            "graphrag.prompt_tune",
+            "--root",
+            input_dir.as_posix(),
+            "--config",
+            settings_file.as_posix(),
+        ]
     )
 
 
@@ -137,3 +149,7 @@ def activate_claims(project_dir: Path, enabled: bool):
     settings["claim_extraction"]["enabled"] = enabled
     with open(settings_file, "w") as f:
         yaml.safe_dump(settings, f)
+
+
+def delete_project(project_dir: Path):
+    shutil.rmtree(project_dir)

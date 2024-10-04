@@ -7,10 +7,18 @@
     padding: 20px;
     border: 1px solid #ddd;
     border-radius: 5px;
+    display: flex;
+    align-items: center;
 }
 .grid-header {
     padding: 20px;
     font-weight: bold;
+}
+
+.grid-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
 }
 
 .grid-container-1-2 { 
@@ -30,6 +38,10 @@
     border: 1px solid #f5c6cb;
     border-radius: 20px;
     padding: 2em 3em;
+}
+
+#error-modal h3, #error-modal div {
+    color: #050001;
 }
 
 #dialog-content {
@@ -53,3 +65,9 @@
 .search-type {
     padding: 0 0 1em 0;
 }
+
+button.delete {
+    background-color: #dc2626;
+    color: white;
+}
+

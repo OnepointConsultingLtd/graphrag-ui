@@ -19,7 +19,7 @@ from fasthtml.common import (
     Li,
     Ul,
     Pre,
-    NotStr
+    NotStr,
 )
 
 from graphrag_ui.service.graphrag_service import (
@@ -31,6 +31,7 @@ from graphrag_ui.service.graphrag_service import (
     get_project_dir,
     activate_claims,
     has_claims_flag,
+    graphrag_prompt_tuning,
     ProjectStatus,
     STATUS_MESSAGES,
 )
@@ -50,7 +51,8 @@ ID_GGENERATE_FORM = "generate-form"
 ID_CLAIMS_SPINNER = "claims-form-spinner"
 ID_CLAIMS_FORM = "claims-form"
 ID_GENERATION_SPINNER = "generation-spinner"
-
+ID_TUNING_SPINNER = "tuning-spinner"
+ID_PROMPT_TUNING_FORM = "prompt-tuning-form"
 SESSION_ASKED_QUESTIONS = "asked_questions"
 
 
@@ -145,6 +147,22 @@ def claims_form(projectTitle: str) -> Form:
     )
 
 
+def prompt_tuning_form(projectTitle: str) -> Form:
+    return Form(
+        Button("Prompt tuning"),
+        Hidden(value=projectTitle, id="projectTitle"),
+        Div(
+            P("Tuning prompts automatically. Please wait ..."),
+            cls="htmx-indicator",
+            id=ID_TUNING_SPINNER,
+        ),
+        hx_put="/project/prompt-tuning",
+        hx_indicator=f"#{ID_TUNING_SPINNER}",
+        target_id=ID_GLOBAL_SEARCH_RESULT,
+        id=ID_PROMPT_TUNING_FORM,
+    )
+
+
 @app.route("/project/{projectTitle}")
 def get(projectTitle: str):
     projectTitle = unquote_plus(projectTitle)
@@ -176,7 +194,7 @@ def get(projectTitle: str):
         form_components.append(config_form)
     elif project_status == ProjectStatus.CONFIGURED:
         index_form = Form(
-            Button("Index project"),
+            Button("Index project", {"onclick": f"""document.getElementById("{ID_GLOBAL_SEARCH_RESULT}").replaceChildren()"""}),
             Div(
                 P("Indexing. Please wait. This may take a while ..."),
                 cls="htmx-indicator",
@@ -187,6 +205,8 @@ def get(projectTitle: str):
             target_id=ID_GLOBAL_SEARCH_RESULT,
             id=ID_INDEX_FORM,
         )
+        form_components.append(claims_form(projectTitle))
+        form_components.append(prompt_tuning_form(projectTitle))
         form_components.append(index_form)
     elif project_status == ProjectStatus.INDEXED:
         output_files = list_output_files(project_dir)
@@ -238,6 +258,16 @@ async def put(projectTitle: str, enabled: str):
         return f"Failed to activate claims: {e}"
 
 
+@app.route("/project/prompt-tuning")
+async def put(projectTitle: str):
+    project_dir = get_project_dir(projectTitle)
+    try:
+        graphrag_prompt_tuning(project_dir)
+        return f"Prompt tuning for project <b>{projectTitle}</b> finished. You can now index the project if you want."
+    except Exception as e:
+        return f"Failed to start prompt tuning: {e}"
+
+
 @app.route("/project/search")
 async def post(projectTitle: str, query: str, searchType: str):
     search_type = SearchType.GLOBAL if searchType == "global" else SearchType.LOCAL
@@ -248,13 +278,29 @@ async def post(projectTitle: str, query: str, searchType: str):
         return tuple((form, NotStr(results)))
     else:
         return results
-    
+
 
 @app.route("/project/generate-question")
 async def post(projectTitle: str, query: str):
     question_history = [query]
-    questions = await generate_questions(question_history, cfg.project_dir / projectTitle)
-    return Div(H3("Questions"), *[P(B(A(q, id=f"question-{i}", href=f"javascript: replaceQuestions(document.getElementById('question-{i}').innerText)"))) for i, q in enumerate(questions)])
+    questions = await generate_questions(
+        question_history, cfg.project_dir / projectTitle
+    )
+    return Div(
+        H3("Questions"),
+        *[
+            P(
+                B(
+                    A(
+                        q,
+                        id=f"question-{i}",
+                        href=f"javascript: replaceQuestions(document.getElementById('question-{i}').innerText)",
+                    )
+                )
+            )
+            for i, q in enumerate(questions)
+        ],
+    )
 
 
 @app.route("/project/output/{projectTitle}/{file_name}")

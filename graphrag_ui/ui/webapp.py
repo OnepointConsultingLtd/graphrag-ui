@@ -11,6 +11,7 @@ from fasthtml.common import (
     Form,
     Label,
     Input,
+    Hidden,
     Button,
     Div,
     Title,
@@ -33,10 +34,12 @@ from graphrag_ui.service.graphrag_service import (
     list_projects,
     graphrag_init,
     graphrag_index,
+    delete_project,
+    get_project_dir,
     STATUS_MESSAGES,
 )
 from graphrag_ui.config import cfg
-from graphrag_ui.ui.snippets import title_group
+from graphrag_ui.ui.snippets import title_group, create_file_input
 
 footer = Dialog(
     Div(
@@ -59,7 +62,7 @@ app = FastHTML(
         MarkdownJS(),
         HighlightJS(langs=["python", "javascript", "html", "css"]),
     ),
-    htmlkw={'data-theme': "dark"},
+    htmlkw={"data-theme": "dark"},
     ftrs=(footer,),
 )
 
@@ -68,9 +71,12 @@ ID_CONFIG_FORM = "config-form"
 ID_CARD = "upload-card"
 ID_SPINNER = "upload-spinner"
 ID_INDEX_FORM = "index-form"
+ID_PROJECT_DELETE_SPINNER = "project-delete-spinner"
 
 
-REFRESH_LINK = """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
+REFRESH_LINK = (
+    """<a href="javascript:window.location.reload(true)">Refresh to continue</a>"""
+)
 
 
 class ErrorCode(Enum):
@@ -89,18 +95,50 @@ async def get(fname: str, ext: str):
 def get():
     title = "Current projects"
     projects = list_projects()
-    cells = [
-        Div("Name", cls="grid-header"),
-        Div("Status", cls="grid-header"),
+    rows = [
+        Div(
+            Div("Name", cls="grid-header"),
+            Div("Status", cls="grid-header"),
+            cls="grid-row",
+        )
     ]
-    for project in projects:
-        cells.append(
+    for i, project in enumerate(projects):
+        target_id = f"project_{i}"
+        rows.append(
             Div(
-                A(project.name, href=f"/project/{quote_plus(project.name)}"),
-                cls="grid-item",
+                Div(
+                    Form(
+                        A(project.name, href=f"/project/{quote_plus(project.name)}"),
+                        Div(
+                            Div(
+                                P("Deleting ..."),
+                                cls="htmx-indicator",
+                                id=ID_PROJECT_DELETE_SPINNER,
+                            ),
+                            Button(
+                                "x",
+                                hx_delete="/delete-project",
+                                target_id=target_id,
+                                hx_indicator=f"#{ID_PROJECT_DELETE_SPINNER}",
+                                hx_swap="outerHTML",
+                                cls="delete",
+                                style="border-radius: 20px; border: 1px solid #ccc; line-height: 9px; text-indent: 0; padding: 7px 16px",
+                            ),
+                            style="display: flex;",
+                        ),
+                        Hidden(
+                            id="projectName", name="projectName", value=project.name
+                        ),
+                        cls="grid-item",
+                        style="display: flex; justify-content: space-between; align-items: center;",
+                    )
+                ),
+                Div(STATUS_MESSAGES[project.status], cls="grid-item"),
+                cls="grid-row",
+                id=target_id
             )
         )
-        cells.append(Div(STATUS_MESSAGES[project.status], cls="grid-item"))
+
     return Title(title), Main(
         H1(title),
         Div(
@@ -110,19 +148,15 @@ def get():
                 style="display: block;",
             )
         ),
-        Div(*cells, id="grid", cls="grid-container"),
+        Div(*rows, id="grid"),
         cls="container",
     )
 
 
 @app.route("/create")
-def get():
-    files = [
-        Input(id="myFile", type="file"),
-        Input(id="myFile2", type="file"),
-        Input(id="myFile3", type="file"),
-        Input(id="myFile4", type="file"),
-    ]
+def get(session):
+    file_amount = session.get("file_amount", 3)
+    files = [create_file_input(number) for number in range(0, file_amount)]
     project_form = Form(
         Label(
             "Project title",
@@ -134,8 +168,22 @@ def get():
             ),
         ),
         *files,
+        Div(id="file-container"),
+        Div(
+            Button(
+                " + ",
+                style="margin-bottom: 10px; border-radius: 20px; border: 1px solid #ccc; padding: 3px 10px;",
+                hx_post="/add-file",
+                target_id="file-container",
+                hx_swap="beforebegin",
+            )
+        ),
         Button("Create project"),
-        Div(P("Uploading. Please wait ..."), cls="htmx-indicator", id=ID_SPINNER),
+        Div(
+            P("Uploading and creating project. Please wait ..."),
+            cls="htmx-indicator",
+            id=ID_SPINNER,
+        ),
         hx_post="/myupload",
         hx_indicator=f"#{ID_SPINNER}",
         hx_swap="innerHTML",
@@ -147,8 +195,32 @@ def get():
     return Title(title), Main(title_group(title), project_form, card, cls="container")
 
 
+@app.route("/add-file")
+def post(session):
+    file_amount = session.get("file_amount", 3)
+    session["file_amount"] = file_amount + 1
+    return create_file_input(file_amount)
+
+
+@app.route("/delete-file")
+def delete(session):
+    file_amount = session.get("file_amount", 3)
+    session["file_amount"] = file_amount - 1
+    return ""
+
+
+@app.route("/delete-project")
+def delete(projectName: str):
+    try:
+        project_dir = get_project_dir(projectName)
+        delete_project(project_dir)
+        return ""
+    except Exception as e:
+        return f"Could not delete project {projectName}. Error: {e}"
+
+
 @app.route("/myupload")
-async def post(req: Request, myFile: UploadFile, projectTitle: str):
+async def post(req: Request, projectTitle: str):
     async with req.form() as form:
         error_code = create_project(projectTitle)
         if error_code == ErrorCode.PROJECT_ALREADY_EXISTS:
@@ -156,11 +228,11 @@ async def post(req: Request, myFile: UploadFile, projectTitle: str):
 
         files = []
         for k, v in form.items():
-            if 'myFile' in k:
+            if "myFile" in k:
                 files.append(v)
         error_code = await init_graphrag_file(files, projectTitle)
         if error_code == ErrorCode.UNSUPPORTED_FILE_TYPE:
-            return f"Unsupported file type {myFile.content_type}"
+            return f"Unsupported file type. Only .txt files are supported."
 
         return f"""Project {create_project_link(projectTitle)} created successfully"""
 
@@ -194,7 +266,7 @@ def create_project(project_title: str) -> ErrorCode:
 
 async def init_graphrag_file(files: List[UploadFile], project_title: str) -> ErrorCode:
     project_dir = Path(cfg.project_dir) / project_title
-    
+
     invalid_files = 0
     for file in files:
         content_type = file.content_type
@@ -218,4 +290,3 @@ async def init_graphrag_file(files: List[UploadFile], project_title: str) -> Err
         print(e)
         return ErrorCode.GRAPHRAG_INIT_ERROR
     return ErrorCode.OK
-    

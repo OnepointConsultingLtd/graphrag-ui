@@ -237,7 +237,9 @@ async def rag_global(query: str, project_dir: Path) -> str:
     return markdown(result.response)
 
 
-async def generate_questions(question_history: List[str], project_dir: Path) -> List[str]:
+async def generate_questions(
+    question_history: List[str], project_dir: Path
+) -> List[str]:
 
     context_builder = build_local_context_builder(project_dir)
 
@@ -253,7 +255,9 @@ async def generate_questions(question_history: List[str], project_dir: Path) -> 
     return await execute_question_generation(question_history, question_generator)
 
 
-async def execute_question_generation(question_history: List[str], question_generator: BaseQuestionGen) -> List[str]:
+async def execute_question_generation(
+    question_history: List[str], question_generator: BaseQuestionGen
+) -> List[str]:
     candidate_questions = await question_generator.agenerate(
         question_history=question_history, context_data=None, question_count=5
     )
@@ -268,4 +272,3 @@ async def query_rag(query: str, project_dir: Path, search_type: SearchType) -> s
             return await rag_local(query, project_dir)
         case _:
             raise ValueError(f"Invalid search type: {search_type}")
-        
