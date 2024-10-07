@@ -148,7 +148,16 @@ def get():
                 style="display: block;",
             )
         ),
-        Div(*rows, id="grid") if len(projects) > 0 else Div(P("No projects found. Create a new project to get started.", style="margin-top: 2em; ")),
+        (
+            Div(*rows, id="grid")
+            if len(projects) > 0
+            else Div(
+                P(
+                    "No projects found. Create a new project to get started.",
+                    style="margin-top: 2em; ",
+                )
+            )
+        ),
         cls="container",
     )
 

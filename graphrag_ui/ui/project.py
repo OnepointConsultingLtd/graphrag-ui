@@ -20,10 +20,11 @@ from fasthtml.common import (
     Ul,
     Pre,
     NotStr,
+    Group,
+    Small,
 )
 
 from graphrag_ui.service.graphrag_service import (
-    get_project_status,
     list_output_files,
     list_columns,
     set_api_key,
@@ -36,7 +37,11 @@ from graphrag_ui.service.graphrag_service import (
 )
 from graphrag_ui.service.graphrag_query import query_rag, generate_questions, SearchType
 from graphrag_ui.config import cfg
-from graphrag_ui.ui.snippets import title_group, REFRESH_LINK
+from graphrag_ui.ui.snippets import (
+    title_group,
+    create_project_title_status,
+    REFRESH_LINK,
+)
 from graphrag_ui.ui.webapp import (
     app,
     ID_CONFIG_FORM,
@@ -59,22 +64,29 @@ SESSION_ASKED_QUESTIONS = "asked_questions"
 
 @app.route("/project/{projectTitle}")
 def get(projectTitle: str):
-    projectTitle = unquote_plus(projectTitle)
-    title = f"Project {projectTitle}"
-    project_dir = cfg.project_dir / projectTitle
-    project_status = get_project_status(project_dir)
+    title, project_status, _, projectTitle = create_project_title_status(projectTitle)
     form_components = []
-    output_files_components = []
-    csv_conversion_form = []
+    status_group = []
+    status = (Div(P("Status: ", B(STATUS_MESSAGES[project_status]))),)
     if project_status == ProjectStatus.INITIALIZED:
         config_form = Form(
             Label(
                 "API Key",
-                Input(
-                    id="key",
-                    name="key",
-                    required=True,
-                    placeholder="Please enter the API key",
+                Div(
+                    Input(
+                        id="key",
+                        name="key",
+                        required=True,
+                        placeholder="Please enter the API key",
+                    ),
+                    Small(
+                        "You can find your API key at ",
+                        A(
+                            "https://platform.openai.com/account/api-keys",
+                            target="_blank",
+                        ),
+                        ".",
+                    ),
                 ),
             ),
             Hidden(value=projectTitle, id="projectTitle"),
@@ -87,6 +99,7 @@ def get(projectTitle: str):
         )
         form_components.append(claims_form(projectTitle))
         form_components.append(config_form)
+        status_group.append(status)
     elif project_status == ProjectStatus.CONFIGURED:
         index_form = Form(
             Button(
@@ -108,7 +121,37 @@ def get(projectTitle: str):
         form_components.append(claims_form(projectTitle))
         form_components.append(prompt_tuning_form(projectTitle))
         form_components.append(index_form)
+        status_group.append(status)
     elif project_status == ProjectStatus.INDEXED:
+        form_components.append(search_form(projectTitle))
+        status_group.append(
+            Group(
+                status,
+                A(
+                    "Project details",
+                    href=f"/project/details/{quote_plus(projectTitle)}",
+                    style="text-align: right;",
+                ),
+            )
+        )
+    card = Div(id=ID_GLOBAL_SEARCH_RESULT, style="margin-top: 10px;", cls="marked")
+    return Title(title), Main(
+        title_group(title),
+        *status_group,
+        *form_components,
+        card,
+        cls="container",
+    )
+
+
+@app.route("/project/details/{projectTitle}")
+def get(projectTitle: str):
+    title, project_status, project_dir, projectTitle = create_project_title_status(
+        projectTitle
+    )
+    output_files_components = []
+    csv_conversion_form = []
+    if project_status == ProjectStatus.INDEXED:
         output_files = list_output_files(project_dir)
         for output_file in output_files:
             output_files_components.append(
@@ -120,26 +163,20 @@ def get(projectTitle: str):
                     )
                 )
             )
-        form_components.append(search_form(projectTitle))
-        csv_conversion_form.extend(create_csv_conversion_form(projectTitle))
-    status = (Div(P("Status: ", B(STATUS_MESSAGES[project_status]))),)
-    card = Div(id=ID_GLOBAL_SEARCH_RESULT, style="margin-top: 10px;", cls="marked")
-    output_files_container = (
-        Div(
-            H2("Output files"),
+        output_files_container = (
             Div(
-                *output_files_components,
-                cls="grid-container-1-2",
-            ),
+                H2("Output files"),
+                Div(
+                    *output_files_components,
+                    cls="grid-container-1-2",
+                ),
+            )
+            if len(output_files_components) > 0
+            else None
         )
-        if len(output_files_components) > 0
-        else None
-    )
+        csv_conversion_form.extend(create_csv_conversion_form(projectTitle))
     return Title(title), Main(
         title_group(title),
-        status,
-        *form_components,
-        card,
         output_files_container,
         *csv_conversion_form,
         cls="container",

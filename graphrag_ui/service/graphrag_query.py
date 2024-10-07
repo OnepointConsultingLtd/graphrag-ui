@@ -74,6 +74,7 @@ def get_claims(project_dir: Path) -> Union[dict, None]:
         covariate_df = pd.read_parquet(file)
         claims = read_indexer_covariates(covariate_df)
         covariates = {"claims": claims}
+        return covariates
     return None
 
 

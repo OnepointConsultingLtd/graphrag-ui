@@ -1,4 +1,13 @@
+from pathlib import Path
+
+from typing import Tuple
+
 from fasthtml.common import Group, H1, A, Img, Div, Input, Button
+
+from urllib.parse import unquote_plus
+
+from graphrag_ui.config import cfg
+from graphrag_ui.service.graphrag_service import ProjectStatus, get_project_status
 
 
 REFRESH_LINK = (
@@ -38,3 +47,13 @@ def create_file_input(file_amount: int):
         style="display: flex; align-items: center;",
         id=id,
     )
+
+
+def create_project_title_status(
+    projectTitle: str,
+) -> Tuple[str, ProjectStatus, Path, str]:
+    projectTitle = unquote_plus(projectTitle)
+    title = f"Project {projectTitle}"
+    project_dir = cfg.project_dir / projectTitle
+    project_status = get_project_status(project_dir)
+    return title, project_status, project_dir, projectTitle
