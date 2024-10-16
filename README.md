@@ -19,3 +19,26 @@ python graphrag_ui/ui/main.py
 ```
 
 The server typically runs on http://localhost:5001/
+
+
+# Running Neo4J
+
+```
+cd C:\development\playground\rag\graphrag-ui
+docker compose up
+```
+
+## Checking configuration:
+
+```
+docker exec -it neo4j-apoc cat /var/neo4j/lib/plugins/README.txt
+```
+
+## Accessing the console:
+```
+docker exec -it neo4j-apoc bash
+```
+
+## Visualizing entities
+
+https://workspace-preview.neo4j.io/workspace/query

@@ -27,6 +27,7 @@ from fasthtml.common import (
     Dialog,
     MarkdownJS,
     HighlightJS,
+    RedirectResponse,
 )
 from starlette.requests import Request
 
@@ -121,8 +122,9 @@ def get():
                                 target_id=target_id,
                                 hx_indicator=f"#{ID_PROJECT_DELETE_SPINNER}",
                                 hx_swap="outerHTML",
-                                cls="delete",
-                                style="border-radius: 20px; border: 1px solid #ccc; line-height: 9px; text-indent: 0; padding: 7px 16px",
+                                hx_confirm=f"Are you really sure you want to delete {project.name}?",
+                                cls="delete short",
+                                style="border-radius: 20px; border: 1px solid #ccc; line-height: 9px; text-indent: 0; padding: 7px 16px;",
                             ),
                             style="display: flex;",
                         ),
@@ -138,16 +140,7 @@ def get():
                 id=target_id,
             )
         )
-
-    return Title(title), Main(
-        H1(title),
-        Div(
-            A(
-                Button("Create project", style="display: block; margin-left: auto;"),
-                href="/create",
-                style="display: block;",
-            )
-        ),
+    table = (
         (
             Div(*rows, id="grid")
             if len(projects) > 0
@@ -157,7 +150,27 @@ def get():
                     style="margin-top: 2em; ",
                 )
             )
+        )
+        if len(projects) > 0
+        else (
+            Div(
+                P(
+                    "No projects right now. Please create one to start.",
+                    style="text-align: center; padding-top: 2em",
+                )
+            )
+        )
+    )
+    return Title(title), Main(
+        H1(title),
+        Div(
+            A(
+                Button("Create project", style="display: block; margin-left: auto;"),
+                href="/create",
+                style="display: block;",
+            )
         ),
+        table,
         cls="container",
     )
 
@@ -223,6 +236,9 @@ def delete(projectName: str):
     try:
         project_dir = get_project_dir(projectName)
         delete_project(project_dir)
+        projects = list_projects()
+        if len(projects) == 0:
+            return "<p style='text-align: center; padding-top: 2em'>No projects available right now.</p>"
         return ""
     except Exception as e:
         return f"Could not delete project {projectName}. Error: {e}"

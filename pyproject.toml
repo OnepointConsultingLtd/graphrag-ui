@@ -13,6 +13,7 @@ markdown = "^3.7"
 # graphrag = "^0.3.6"
 # Modified version
 graphrag = {path = "../graphrag/dist/graphrag-0.3.6.post2-py3-none-any.whl"}
+neo4j-rust-ext = "^5.25.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.8.0"

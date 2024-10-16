@@ -66,8 +66,16 @@
     padding: 0 0 1em 0;
 }
 
+button {
+    min-width: 200px;
+}
+
 button.delete {
     background-color: #dc2626;
     color: white;
+}
+
+button.short {
+    min-width: auto;
 }
 

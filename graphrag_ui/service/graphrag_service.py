@@ -9,6 +9,10 @@ import yaml
 
 import pandas as pd
 
+from graphrag.index.cli import _initialize_project_at
+from graphrag.index.progress.load_progress_reporter import load_progress_reporter
+from graphrag.index.progress.types import ReporterType
+
 from graphrag_ui.config import cfg
 from pydantic import BaseModel, Field
 

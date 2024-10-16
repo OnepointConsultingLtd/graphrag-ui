@@ -14,3 +14,7 @@ function replaceQuestions(question) {
     }
     return false;
 }
+
+function confirmQuestion(question) {
+    return window.confirm(question)
+}

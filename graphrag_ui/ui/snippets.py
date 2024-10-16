@@ -42,7 +42,7 @@ def create_file_input(file_amount: int):
             hx_delete="/delete-file",
             target_id=id,
             hx_swap="outerHTML",
-            cls="delete",
+            cls="delete short",
         ),
         style="display: flex; align-items: center;",
         id=id,
