@@ -198,6 +198,7 @@ def get(session):
                 hx_post="/add-file",
                 target_id="file-container",
                 hx_swap="beforebegin",
+                cls="short"
             )
         ),
         Button("Create project"),
